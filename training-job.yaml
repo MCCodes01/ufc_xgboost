@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models-pvc
+  namespace: xgboost-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: xgboost-training
+  namespace: xgboost-dev
+spec:
+  template:
+    metadata:
+      labels:
+        app: xgboost-training
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: trainer
+        image: ufc-xgboost-trainer:latest
+        imagePullPolicy: Never
+        env:
+        - name: DB_HOST
+          value: "postgres-dev.xgboost-dev.svc.cluster.local"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: "octagona"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: xgboost-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: xgboost-secrets
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: models-volume
+          mountPath: /models
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+      volumes:
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: models-pvc
+  backoffLimit: 2
